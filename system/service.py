@@ -64,7 +64,12 @@ options:
         description:
         - Whether the service should start on boot. B(At least one of state and
           enabled are required.)
-
+    ignore_missing_levels:
+        required: false
+        version_added: "2.2"
+        choices: [ "yes", "no" ]
+        description:
+        - Ignores missing runlevels for services reported by insserv.
     runlevel:
         required: false
         default: 'default'
@@ -144,6 +149,7 @@ class Service(object):
         self.sleep          = module.params['sleep']
         self.pattern        = module.params['pattern']
         self.enable         = module.params['enabled']
+        self.ignore_missing_levels = module.params['ignore_missing_levels']
         self.runlevel       = module.params['runlevel']
         self.changed        = False
         self.running        = None
@@ -830,6 +836,9 @@ class LinuxService(Service):
 
             if self.enable:
                 (rc, out, err) = self.execute_command("%s %s" % (self.enable_cmd, self.name))
+                if self.ignore_missing_levels:
+                        insserv_re = re.compile(r'^insserv: Service .* is missed in the runlevels .* to use service (.*)\n', re.MULTILINE)
+                        err = insserv_re.sub("", err)
                 if (rc != 0) or (err != ''):
                     self.module.fail_json(msg=("Failed to install service. rc: %s, out: %s, err: %s" % (rc, out, err)))
                 return (rc, out, err)
@@ -1459,6 +1468,7 @@ def main():
             sleep = dict(required=False, type='int', default=None),
             pattern = dict(required=False, default=None),
             enabled = dict(type='bool'),
+            ignore_missing_levels = dict(type='bool'),
             runlevel = dict(required=False, default='default'),
             arguments = dict(aliases=['args'], default=''),
         ),
